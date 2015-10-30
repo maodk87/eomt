@@ -45,7 +45,10 @@ angular.module('mm.addons.notifications')
          * @return {Boolean} True if handler is enabled, false otherwise.
          */
         self.isEnabled = function() {
-            return $mmaNotifications.isPluginEnabled();
+            //UPDATE by MAODK: Disable menu
+            //return $mmaNotifications.isPluginEnabled();
+            return false;
+            //UPDATE by MAODK: Disable menu
         };
 
         /**

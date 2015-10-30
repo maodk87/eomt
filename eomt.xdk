@@ -6,7 +6,7 @@
       "projectTypeName": "com.intel.xdk.projecttype.jsapp",
       "src": "",
       "projectGuid": "e96c4020-9664-4c72-b1fa-c79de1631636",
-      "lastModifiedDate": 1445920957580,
+      "lastModifiedDate": 1446179523775,
       "creationDate": 1445856290213
     },
     "sourceDirectory": "",
@@ -168,8 +168,31 @@
           "intents": [],
           "navigation": []
         },
-        "icons_": [],
-        "splashes_": [],
+        "icons_": [
+          {
+            "relPath": "resources/windowphone/icon/30x30.png",
+            "height": 30,
+            "width": 30
+          },
+          {
+            "relPath": "resources/windowphone/icon/50x50.png",
+            "height": 50,
+            "width": 50
+          },
+          {
+            "relPath": "resources/windowphone/icon/150x150.png",
+            "height": 150,
+            "width": 150
+          }
+        ],
+        "splashes_": [
+          {
+            "relPath": "resources/windowphone/splash/620x300.png",
+            "height": 300,
+            "width": 620,
+            "orientation": "landscape"
+          }
+        ],
         "addlPermissions_": "",
         "excludedLibraries_": "",
         "appVersion_": "0.0.0.1",

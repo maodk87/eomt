@@ -45,7 +45,10 @@ angular.module('mm.addons.files')
          * @return {Boolean} True if handler is enabled, false otherwise.
          */
         self.isEnabled = function() {
-            return $mmaFiles.isPluginEnabled();
+            //UPDATE by MAODK: Disable menu
+            //return $mmaFiles.isPluginEnabled();
+            return false;
+            //UPDATE by MAODK: Disable menu
         };
 
         /**

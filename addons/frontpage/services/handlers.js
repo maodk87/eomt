@@ -46,11 +46,13 @@ angular.module('mm.addons.frontpage')
          *                           rejected promise or false.
          */
         self.isEnabled = function() {
-            if ($mmaFrontpage.isPluginEnabled()) {
+            //UPDATE by MAODK: Disable menu
+            /*if ($mmaFrontpage.isPluginEnabled()) {
                 return $mmaFrontpage.isFrontpageAvailable().then(function() {
                     return true;
                 });
-            }
+            }*/
+            //UPDATE by MAODK: Disable menu
             return false;
         };
 

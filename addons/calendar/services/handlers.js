@@ -45,7 +45,10 @@ angular.module('mm.addons.calendar')
          * @return {Boolean} True if handler is enabled, false otherwise.
          */
         self.isEnabled = function() {
-            return $mmaCalendar.isAvailable();
+            //UPDATE by MAODK: Disable menu
+            //return $mmaCalendar.isAvailable();
+            return false;
+            //UPDATE by MAODK: Disable menu
         };
 
         /**

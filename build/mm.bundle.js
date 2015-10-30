@@ -171,7 +171,7 @@ angular.module('ngIOS9UIWebViewPatch', ['ng']).config(["$provide", function($pro
 }]);
 angular.module('mm.core')
 .provider('$mmApp', ["$stateProvider", function($stateProvider) {
-        var DBNAME = 'MoodleMobile',
+        var DBNAME = 'EOMT',
         dbschema = {
             stores: []
         },
@@ -4688,7 +4688,10 @@ angular.module('mm.core.login', [])
     .state('mm_login.site', {
         url: '/site',
         templateUrl: 'core/components/login/templates/site.html',
-        controller: 'mmLoginSiteCtrl'
+        controller: 'mmLoginSiteCtrl',
+        onEnter: ["$state", function($state) {
+            $state.go('mm_login.credentials', {siteurl: 'http://elearning.omt.vn'});
+        }]
     })
     .state('mm_login.credentials', {
         url: '/cred',
@@ -7581,7 +7584,7 @@ angular.module('mm.addons.calendar')
         self.sideMenuNav = function() {
         var self = {};
                 self.isEnabled = function() {
-            return $mmaCalendar.isAvailable();
+            return false;
         };
                 self.getController = function() {
                         return function($scope) {
@@ -8196,7 +8199,7 @@ angular.module('mm.addons.files')
         self.sideMenuNav = function() {
         var self = {};
                 self.isEnabled = function() {
-            return $mmaFiles.isPluginEnabled();
+            return false;
         };
                 self.getController = function() {
                         return function($scope) {
@@ -8442,11 +8445,6 @@ angular.module('mm.addons.frontpage')
         self.sideMenuNav = function() {
         var self = {};
                 self.isEnabled = function() {
-            if ($mmaFrontpage.isPluginEnabled()) {
-                return $mmaFrontpage.isFrontpageAvailable().then(function() {
-                    return true;
-                });
-            }
             return false;
         };
                 self.getController = function() {
@@ -13599,7 +13597,7 @@ angular.module('mm.addons.notifications')
         self.sideMenuNav = function() {
         var self = {};
                 self.isEnabled = function() {
-            return $mmaNotifications.isPluginEnabled();
+            return false;
         };
                 self.getController = function() {
                         return function($scope) {

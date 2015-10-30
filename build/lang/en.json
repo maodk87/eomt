@@ -1,6 +1,7 @@
 {
     "mm.core.allparticipants": "All participants",
     "mm.core.android": "Android",
+    "mm.core.sitename": " Tulip Preschools",
     "mm.core.areyousure": "Are you sure?",
     "mm.core.cancel": "Cancel",
     "mm.core.cannotconnect": "Cannot connect: Verify that you have typed correctly the URL and that your site uses Moodle 2.4 or later.",
@@ -119,7 +120,7 @@
     "mm.login.authenticating": "Authenticating",
     "mm.login.cancel": "Cancel",
     "mm.login.credentials": "Credentials",
-    "mm.login.credentialsdescription": "Please provide your username and password to login on ",
+    "mm.login.credentialsdescription": "Please provide your username and password to login at EOMT system for ",
     "mm.login.confirmdeletesite": "Are you sure you want to delete the site {{sitename}}?",
     "mm.login.connect": "Connect!",
     "mm.login.connecttomoodle": "Connect to Moodle",
