@@ -114,7 +114,7 @@ angular.module('mm.core')
                     // Retry without HTTPS.
                     return self.checkSite(siteurl, "http://");
                 } else{
-                    return $mmLang.translateAndReject('mm.core.cannotconnect');
+                    return $mmLang.translateAndReject('mm.core.cannotconnect')+':'+siteurl;
                 }
             });
         }
