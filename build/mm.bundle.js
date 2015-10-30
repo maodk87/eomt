@@ -10177,6 +10177,289 @@ angular.module('mm.addons.mod_book')
     return self;
 }]);
 
+angular.module('mm.addons.mod_chat')
+.controller('mmaModChatChatCtrl', ["$scope", "$stateParams", "$mmApp", "$mmaModChat", "$log", "$ionicModal", "$mmUtil", "$ionicHistory", "$ionicScrollDelegate", "$timeout", "$mmSite", "$interval", "mmaChatPollInterval", function($scope, $stateParams, $mmApp, $mmaModChat, $log, $ionicModal, $mmUtil, $ionicHistory,
+            $ionicScrollDelegate, $timeout, $mmSite, $interval, mmaChatPollInterval) {
+    $log = $log.getInstance('mmaModChatChatCtrl');
+    var chatId = $stateParams.chatid,
+        courseId = $stateParams.courseid,
+        title = $stateParams.title,
+        polling;
+    $scope.loaded = false;
+    $scope.title = title;
+    $scope.currentUserId = $mmSite.getUserId();
+    $scope.currentUserBeep = 'beep ' + $scope.currentUserId;
+    $scope.messages = [];
+    $scope.chatUsers = [];
+    $scope.newMessage = {
+        text: ''
+    };
+    chatLastTime = 0;
+    $ionicModal.fromTemplateUrl('addons/mod_chat/templates/users.html', {
+        scope: $scope,
+        animation: 'slide-in-up'
+    }).then(function(m) {
+        $scope.modal = m;
+    });
+    $scope.closeModal = function(){
+        $scope.modal.hide();
+    };
+    $scope.showChatUsers = function() {
+        $scope.usersLoaded = false;
+        $scope.modal.show();
+        $mmaModChat.getChatUsers($scope.chatsid).then(function(data) {
+            $scope.chatUsers = data.users;
+        }).catch(showError)
+        .finally(function() {
+            $scope.usersLoaded = true;
+        });
+    };
+    $scope.talkTo = function(user) {
+        $scope.newMessage.text = "To " + user + ": ";
+        $scope.modal.hide();
+    };
+    $scope.beepTo = function(userId) {
+        $scope.sendMessage('', userId);
+        $scope.modal.hide();
+    };
+    $scope.isAppOffline = function() {
+        return !$mmApp.isOnline();
+    };
+    function showError(error) {
+        if (typeof error === 'string') {
+            $mmUtil.showErrorModal(error);
+        } else {
+            $mmUtil.showErrorModal(defaultMessage, 'mm.core.error');
+        }
+    }
+    $scope.showDate = function(message, prevMessage) {
+        if (!prevMessage) {
+            return true;
+        }
+        return !moment(message.timestamp * 1000).isSame(prevMessage.timestamp * 1000, 'day');
+    };
+    $scope.sendMessage = function(text, beep) {
+        var message;
+        beep = beep || '';
+        if (!$mmApp.isOnline()) {
+            return;
+        } else if (beep === '' && !text.trim()) {
+            return;
+        }
+        text = text.replace(/(?:\r\n|\r|\n)/g, '<br />');
+        $mmaModChat.sendMessage($scope.chatsid, text, beep).then(function() {
+            if (beep === '') {
+                $scope.newMessage.text = '';
+            }
+        }, function(error) {
+            $mmApp.closeKeyboard();
+            showError(error);
+        });
+    };
+    $mmaModChat.loginUser(chatId).then(function(data) {
+        return $mmaModChat.getLatestMessages(data.chatsid, 0).then(function(messagesInfo) {
+            $scope.chatsid = data.chatsid;
+            chatLastTime = messagesInfo.chatnewlasttime;
+            return $mmaModChat.getMessagesUserData(messagesInfo.messages, courseId).then(function(messages) {
+                $scope.messages = $scope.messages.concat(messages);
+            });
+        }).catch(showError);
+    }, function(error) {
+        showError(error);
+        $ionicHistory.goBack();
+    }).finally(function() {
+        $scope.loaded = true;
+    });
+    $scope.scrollAfterRender = function(scope) {
+        if (scope.$last === true) {
+            $timeout(function() {
+                var scrollView = $ionicScrollDelegate.$getByHandle('mmaChatScroll');
+                scrollView.scrollBottom();
+            });
+        }
+    };
+    $scope.$on('$ionicView.enter', function() {
+        if (polling) {
+            return;
+        }
+        polling = $interval(function() {
+            $log.debug('Polling for messages');
+            if (!$mmApp.isOnline()) {
+                return;
+            }
+            $mmaModChat.getLatestMessages($scope.chatsid, chatLastTime).then(function(data) {
+                chatLastTime = data.chatnewlasttime;
+                $mmaModChat.getMessagesUserData(data.messages, courseId).then(function(messages) {
+                    $scope.messages = $scope.messages.concat(messages);
+                });
+            }, function(error) {
+                $interval.cancel(polling);
+                showError(error);
+            });
+        }, mmaChatPollInterval);
+    });
+    $scope.$on('$ionicView.leave', function(e) {
+        if (polling) {
+            $log.debug('Cancelling polling for conversation');
+            $interval.cancel(polling);
+        }
+    });
+}]);
+
+angular.module('mm.addons.mod_chat')
+.controller('mmaModChatIndexCtrl', ["$scope", "$stateParams", "$mmaModChat", "$mmUtil", "$q", "$mmCourse", function($scope, $stateParams, $mmaModChat, $mmUtil, $q, $mmCourse) {
+    var module = $stateParams.module || {},
+        courseid = $stateParams.courseid,
+        chat;
+    $scope.title = module.name;
+    $scope.description = module.description;
+    $scope.moduleurl = module.url;
+    $scope.courseid = courseid;
+    function fetchChatData(refresh) {
+        return $mmaModChat.getChat(courseid, module.id, refresh).then(function(chatdata) {
+            chat = chatdata;
+            $scope.title = chat.name || $scope.title;
+            $scope.description = chat.intro || $scope.description;
+            $scope.chatId = chat.id;
+            $scope.chatScheduled = '';
+            var now = $mmUtil.timestamp();
+            var span = chat.chattime - now;
+            if (chat.chattime && chat.schedule > 0 && span > 0) {
+                $mmUtil.formatTime(span).then(function(time) {
+                    $scope.chatScheduled = time;
+                });
+            }
+        }, function(error) {
+            if (error) {
+                $mmUtil.showErrorModal(error);
+            } else {
+                $mmUtil.showErrorModal('mm.core.error', true);
+            }
+            return $q.reject();
+        });
+    }
+    fetchChatData().then(function() {
+        $mmaModChat.logView(chat.id).then(function() {
+            $mmCourse.checkModuleCompletion(courseid, module.completionstatus);
+        });
+    }).finally(function() {
+        $scope.chatLoaded = true;
+    });
+    $scope.refreshChat = function() {
+        fetchChatData(true).finally(function() {
+            $scope.$broadcast('scroll.refreshComplete');
+        });
+    };
+}]);
+angular.module('mm.addons.mod_chat')
+.factory('$mmaModChat', ["$q", "$mmSite", "$mmUser", function($q, $mmSite, $mmUser) {
+    var self = {};
+        self.isPluginEnabled = function() {
+        return  $mmSite.wsAvailable('mod_chat_get_chats_by_courses') &&
+                $mmSite.wsAvailable('mod_chat_login_user') &&
+                $mmSite.wsAvailable('mod_chat_get_chat_users') &&
+                $mmSite.wsAvailable('mod_chat_send_chat_message') &&
+                $mmSite.wsAvailable('mod_chat_get_chat_latest_messages');
+    };
+        self.getChat = function(courseid, cmid, refresh) {
+        var params = {
+            courseids: [courseid]
+            },
+            preSets = {};
+        if (refresh) {
+            preSets.getFromCache = false;
+        }
+        return $mmSite.read('mod_chat_get_chats_by_courses', params, preSets).then(function(response) {
+            if (response.chats) {
+                var currentChat;
+                angular.forEach(response.chats, function(chat) {
+                    if (chat.coursemodule == cmid) {
+                        currentChat = chat;
+                    }
+                });
+                if (currentChat) {
+                    return currentChat;
+                }
+            }
+            return $q.reject();
+        });
+    };
+        self.loginUser = function(chatId) {
+        var params = {
+            chatid: chatId
+        };
+        return $mmSite.write('mod_chat_login_user', params);
+    };
+        self.logView = function(id) {
+        if (id) {
+            var params = {
+                chatid: id
+            };
+            return $mmSite.write('mod_chat_view_chat', params);
+        }
+        return $q.reject();
+    };
+        self.sendMessage = function(chatsid, message, beep) {
+        var params = {
+            chatsid: chatsid,
+            messagetext: message,
+            beepid: beep
+        };
+        return $mmSite.write('mod_chat_send_chat_message', params);
+    };
+        self.getLatestMessages = function(chatsid, lasttime) {
+        var params = {
+            chatsid: chatsid,
+            chatlasttime: lasttime
+        };
+        var preSets = {
+            getFromCache: false
+        };
+        return $mmSite.read('mod_chat_get_chat_latest_messages', params, preSets);
+    };
+        self.getMessagesUserData = function(messages, courseid) {
+        var promises = [];
+        angular.forEach(messages, function(message) {
+            var promise = $mmUser.getProfile(message.userid, courseid, true).then(function(user) {
+                message.userfullname = user.fullname;
+                message.userprofileimageurl = user.profileimageurl;
+            }, function() {
+                message.userfullname = message.userid;
+            });
+            promises.push(promise);
+        });
+        return $q.all(promises).then(function() {
+            return messages;
+        });
+    };
+        self.getChatUsers = function(chatsid) {
+        var params = {
+            chatsid: chatsid
+        };
+        var preSets = {
+            getFromCache: false
+        };
+        return $mmSite.read('mod_chat_get_chat_users', params, preSets);
+    };
+    return self;
+}]);
+angular.module('mm.addons.mod_chat')
+.factory('$mmaModChatCourseContentHandler', ["$mmCourse", "$mmaModChat", "$state", function($mmCourse, $mmaModChat, $state) {
+    var self = {};
+        self.isEnabled = function() {
+        return $mmaModChat.isPluginEnabled();
+    };
+        self.getController = function(module, courseid) {
+        return function($scope) {
+            $scope.title = module.name;
+            $scope.icon = $mmCourse.getModuleIconSrc('chat');
+            $scope.action = function(e) {
+                $state.go('site.mod_chat', {module: module, courseid: courseid});
+            };
+        };
+    };
+    return self;
+}]);
 angular.module('mm.addons.mod_choice')
 .controller('mmaModChoiceIndexCtrl', ["$scope", "$stateParams", "$mmaModChoice", "$mmUtil", "$q", "$mmCourse", "$translate", function($scope, $stateParams, $mmaModChoice, $mmUtil, $q, $mmCourse, $translate) {
     var module = $stateParams.module || {},
@@ -10579,289 +10862,6 @@ angular.module('mm.addons.mod_folder')
     return self;
 }]);
 
-angular.module('mm.addons.mod_chat')
-.controller('mmaModChatChatCtrl', ["$scope", "$stateParams", "$mmApp", "$mmaModChat", "$log", "$ionicModal", "$mmUtil", "$ionicHistory", "$ionicScrollDelegate", "$timeout", "$mmSite", "$interval", "mmaChatPollInterval", function($scope, $stateParams, $mmApp, $mmaModChat, $log, $ionicModal, $mmUtil, $ionicHistory,
-            $ionicScrollDelegate, $timeout, $mmSite, $interval, mmaChatPollInterval) {
-    $log = $log.getInstance('mmaModChatChatCtrl');
-    var chatId = $stateParams.chatid,
-        courseId = $stateParams.courseid,
-        title = $stateParams.title,
-        polling;
-    $scope.loaded = false;
-    $scope.title = title;
-    $scope.currentUserId = $mmSite.getUserId();
-    $scope.currentUserBeep = 'beep ' + $scope.currentUserId;
-    $scope.messages = [];
-    $scope.chatUsers = [];
-    $scope.newMessage = {
-        text: ''
-    };
-    chatLastTime = 0;
-    $ionicModal.fromTemplateUrl('addons/mod_chat/templates/users.html', {
-        scope: $scope,
-        animation: 'slide-in-up'
-    }).then(function(m) {
-        $scope.modal = m;
-    });
-    $scope.closeModal = function(){
-        $scope.modal.hide();
-    };
-    $scope.showChatUsers = function() {
-        $scope.usersLoaded = false;
-        $scope.modal.show();
-        $mmaModChat.getChatUsers($scope.chatsid).then(function(data) {
-            $scope.chatUsers = data.users;
-        }).catch(showError)
-        .finally(function() {
-            $scope.usersLoaded = true;
-        });
-    };
-    $scope.talkTo = function(user) {
-        $scope.newMessage.text = "To " + user + ": ";
-        $scope.modal.hide();
-    };
-    $scope.beepTo = function(userId) {
-        $scope.sendMessage('', userId);
-        $scope.modal.hide();
-    };
-    $scope.isAppOffline = function() {
-        return !$mmApp.isOnline();
-    };
-    function showError(error) {
-        if (typeof error === 'string') {
-            $mmUtil.showErrorModal(error);
-        } else {
-            $mmUtil.showErrorModal(defaultMessage, 'mm.core.error');
-        }
-    }
-    $scope.showDate = function(message, prevMessage) {
-        if (!prevMessage) {
-            return true;
-        }
-        return !moment(message.timestamp * 1000).isSame(prevMessage.timestamp * 1000, 'day');
-    };
-    $scope.sendMessage = function(text, beep) {
-        var message;
-        beep = beep || '';
-        if (!$mmApp.isOnline()) {
-            return;
-        } else if (beep === '' && !text.trim()) {
-            return;
-        }
-        text = text.replace(/(?:\r\n|\r|\n)/g, '<br />');
-        $mmaModChat.sendMessage($scope.chatsid, text, beep).then(function() {
-            if (beep === '') {
-                $scope.newMessage.text = '';
-            }
-        }, function(error) {
-            $mmApp.closeKeyboard();
-            showError(error);
-        });
-    };
-    $mmaModChat.loginUser(chatId).then(function(data) {
-        return $mmaModChat.getLatestMessages(data.chatsid, 0).then(function(messagesInfo) {
-            $scope.chatsid = data.chatsid;
-            chatLastTime = messagesInfo.chatnewlasttime;
-            return $mmaModChat.getMessagesUserData(messagesInfo.messages, courseId).then(function(messages) {
-                $scope.messages = $scope.messages.concat(messages);
-            });
-        }).catch(showError);
-    }, function(error) {
-        showError(error);
-        $ionicHistory.goBack();
-    }).finally(function() {
-        $scope.loaded = true;
-    });
-    $scope.scrollAfterRender = function(scope) {
-        if (scope.$last === true) {
-            $timeout(function() {
-                var scrollView = $ionicScrollDelegate.$getByHandle('mmaChatScroll');
-                scrollView.scrollBottom();
-            });
-        }
-    };
-    $scope.$on('$ionicView.enter', function() {
-        if (polling) {
-            return;
-        }
-        polling = $interval(function() {
-            $log.debug('Polling for messages');
-            if (!$mmApp.isOnline()) {
-                return;
-            }
-            $mmaModChat.getLatestMessages($scope.chatsid, chatLastTime).then(function(data) {
-                chatLastTime = data.chatnewlasttime;
-                $mmaModChat.getMessagesUserData(data.messages, courseId).then(function(messages) {
-                    $scope.messages = $scope.messages.concat(messages);
-                });
-            }, function(error) {
-                $interval.cancel(polling);
-                showError(error);
-            });
-        }, mmaChatPollInterval);
-    });
-    $scope.$on('$ionicView.leave', function(e) {
-        if (polling) {
-            $log.debug('Cancelling polling for conversation');
-            $interval.cancel(polling);
-        }
-    });
-}]);
-
-angular.module('mm.addons.mod_chat')
-.controller('mmaModChatIndexCtrl', ["$scope", "$stateParams", "$mmaModChat", "$mmUtil", "$q", "$mmCourse", function($scope, $stateParams, $mmaModChat, $mmUtil, $q, $mmCourse) {
-    var module = $stateParams.module || {},
-        courseid = $stateParams.courseid,
-        chat;
-    $scope.title = module.name;
-    $scope.description = module.description;
-    $scope.moduleurl = module.url;
-    $scope.courseid = courseid;
-    function fetchChatData(refresh) {
-        return $mmaModChat.getChat(courseid, module.id, refresh).then(function(chatdata) {
-            chat = chatdata;
-            $scope.title = chat.name || $scope.title;
-            $scope.description = chat.intro || $scope.description;
-            $scope.chatId = chat.id;
-            $scope.chatScheduled = '';
-            var now = $mmUtil.timestamp();
-            var span = chat.chattime - now;
-            if (chat.chattime && chat.schedule > 0 && span > 0) {
-                $mmUtil.formatTime(span).then(function(time) {
-                    $scope.chatScheduled = time;
-                });
-            }
-        }, function(error) {
-            if (error) {
-                $mmUtil.showErrorModal(error);
-            } else {
-                $mmUtil.showErrorModal('mm.core.error', true);
-            }
-            return $q.reject();
-        });
-    }
-    fetchChatData().then(function() {
-        $mmaModChat.logView(chat.id).then(function() {
-            $mmCourse.checkModuleCompletion(courseid, module.completionstatus);
-        });
-    }).finally(function() {
-        $scope.chatLoaded = true;
-    });
-    $scope.refreshChat = function() {
-        fetchChatData(true).finally(function() {
-            $scope.$broadcast('scroll.refreshComplete');
-        });
-    };
-}]);
-angular.module('mm.addons.mod_chat')
-.factory('$mmaModChat', ["$q", "$mmSite", "$mmUser", function($q, $mmSite, $mmUser) {
-    var self = {};
-        self.isPluginEnabled = function() {
-        return  $mmSite.wsAvailable('mod_chat_get_chats_by_courses') &&
-                $mmSite.wsAvailable('mod_chat_login_user') &&
-                $mmSite.wsAvailable('mod_chat_get_chat_users') &&
-                $mmSite.wsAvailable('mod_chat_send_chat_message') &&
-                $mmSite.wsAvailable('mod_chat_get_chat_latest_messages');
-    };
-        self.getChat = function(courseid, cmid, refresh) {
-        var params = {
-            courseids: [courseid]
-            },
-            preSets = {};
-        if (refresh) {
-            preSets.getFromCache = false;
-        }
-        return $mmSite.read('mod_chat_get_chats_by_courses', params, preSets).then(function(response) {
-            if (response.chats) {
-                var currentChat;
-                angular.forEach(response.chats, function(chat) {
-                    if (chat.coursemodule == cmid) {
-                        currentChat = chat;
-                    }
-                });
-                if (currentChat) {
-                    return currentChat;
-                }
-            }
-            return $q.reject();
-        });
-    };
-        self.loginUser = function(chatId) {
-        var params = {
-            chatid: chatId
-        };
-        return $mmSite.write('mod_chat_login_user', params);
-    };
-        self.logView = function(id) {
-        if (id) {
-            var params = {
-                chatid: id
-            };
-            return $mmSite.write('mod_chat_view_chat', params);
-        }
-        return $q.reject();
-    };
-        self.sendMessage = function(chatsid, message, beep) {
-        var params = {
-            chatsid: chatsid,
-            messagetext: message,
-            beepid: beep
-        };
-        return $mmSite.write('mod_chat_send_chat_message', params);
-    };
-        self.getLatestMessages = function(chatsid, lasttime) {
-        var params = {
-            chatsid: chatsid,
-            chatlasttime: lasttime
-        };
-        var preSets = {
-            getFromCache: false
-        };
-        return $mmSite.read('mod_chat_get_chat_latest_messages', params, preSets);
-    };
-        self.getMessagesUserData = function(messages, courseid) {
-        var promises = [];
-        angular.forEach(messages, function(message) {
-            var promise = $mmUser.getProfile(message.userid, courseid, true).then(function(user) {
-                message.userfullname = user.fullname;
-                message.userprofileimageurl = user.profileimageurl;
-            }, function() {
-                message.userfullname = message.userid;
-            });
-            promises.push(promise);
-        });
-        return $q.all(promises).then(function() {
-            return messages;
-        });
-    };
-        self.getChatUsers = function(chatsid) {
-        var params = {
-            chatsid: chatsid
-        };
-        var preSets = {
-            getFromCache: false
-        };
-        return $mmSite.read('mod_chat_get_chat_users', params, preSets);
-    };
-    return self;
-}]);
-angular.module('mm.addons.mod_chat')
-.factory('$mmaModChatCourseContentHandler', ["$mmCourse", "$mmaModChat", "$state", function($mmCourse, $mmaModChat, $state) {
-    var self = {};
-        self.isEnabled = function() {
-        return $mmaModChat.isPluginEnabled();
-    };
-        self.getController = function(module, courseid) {
-        return function($scope) {
-            $scope.title = module.name;
-            $scope.icon = $mmCourse.getModuleIconSrc('chat');
-            $scope.action = function(e) {
-                $state.go('site.mod_chat', {module: module, courseid: courseid});
-            };
-        };
-    };
-    return self;
-}]);
 angular.module('mm.addons.mod_forum')
 .controller('mmaModForumDiscussionCtrl', ["$q", "$scope", "$stateParams", "$mmaModForum", "$mmSite", "$mmUtil", "$translate", "$ionicScrollDelegate", "mmaModForumComponent", function($q, $scope, $stateParams, $mmaModForum, $mmSite, $mmUtil, $translate,
             $ionicScrollDelegate, mmaModForumComponent) {
