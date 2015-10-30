@@ -4690,7 +4690,7 @@ angular.module('mm.core.login', [])
         templateUrl: 'core/components/login/templates/site.html',
         controller: 'mmLoginSiteCtrl',
         onEnter: ["$state", function($state) {
-            $state.go('mm_login.credentials', {siteurl: 'http://elearning.omt.vn'});
+            $state.go('mm_login.credentials', {siteurl: 'http://mamnontulip.omt.vn'});
         }]
     })
     .state('mm_login.credentials', {
